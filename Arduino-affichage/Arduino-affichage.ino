@@ -1,47 +1,25 @@
 // Partie LCD
 #include <LiquidCrystal.h>
-LiquidCrystal lcd(12, 11, 5, 4, 3, 2);
-int reply;
-
-// Partie Keypad
-#include <Keypad.h>
-
-const int ROW_NUM = 4; //four rows
-const int COLUMN_NUM = 4; //three columns
-
-char keys[ROW_NUM][COLUMN_NUM] = {
-  {'1','2','3', 'A'},
-  {'4','5','6', 'B'},
-  {'7','8','9', 'C'},
-  {'*','0','#', 'D'}
-};
-
-byte rowPins[4] = {22, 23, 24, 25};
-byte colPins[4] = {26, 27, 28, 29};
-
-Keypad keypad = Keypad(
-  makeKeymap(keys),
-  rowPins,
-  colPins,
-  ROW_NUM,
-  COLUMN_NUM
-);
-
-
-unsigned long timeCheckpoint;
-float temp = 0;
 
 #define BUZZPIN 6
-#define BOUTONPIN 13
+
+LiquidCrystal lcd(12, 11, 5, 4, 3, 2);
+
+int maximum = 25;
+int minimum = 25;
+int etat = 0;
 
 void alarm() {
   tone(BUZZPIN, 440);
-  while (digitalRead(BOUTONPIN) != HIGH) {}
+  while (Serial.read() != '1') {};
   noTone(BUZZPIN);
+  lcd.clear();
+  lcd.setCursor(0, 0);
+  lcd.print("1. C'est bon ?");
+  while (Serial.read() != '1') {};
 }
 
-void refresh(char key) {
-  timeCheckpoint = millis();
+void refresh(int key) {
   lcd.clear();
   lcd.setCursor(0,0);
   lcd.print("Temp. : ");
@@ -50,24 +28,78 @@ void refresh(char key) {
   lcd.print("* pour Options");
 }
 
+void getval(int *val) {
+  lcd.clear();
+  lcd.setCursor(0,0);
+  lcd.print("Valeur : ");
+  lcd.print(*val);
+  int newval = 0;
+  String strval;
+  while (newval == 0) {
+    if(Serial.available()) {
+      strval = Serial.read();
+      newval == strval.toInt();
+    }
+  }
+  *val = newval;
+}
+
+void options() {
+  lcd.clear();
+  lcd.setCursor(0,0);
+  lcd.print("1. Minimum: ");
+  lcd.print(minimum);
+  lcd.setCursor(0,1);
+  lcd.print("2. Maximum: ");
+  lcd.print(maximum);
+
+  char value = '0';
+  int* maxoumin;
+  while (HIGH) {
+    if (Serial.available()) {
+      value = Serial.read(); 
+    }
+    switch (value) {
+      case '1':
+        maxoumin = &minimum;
+        getval(maxoumin);
+        return;
+        break;
+      case '2':
+        maxoumin = &maximum;
+        getval(maxoumin);
+        return;
+        break;
+      case 'Q':
+      case 'q':
+        return;
+    }
+    }
+
+}
+
 void setup() {
   // On initialise le lcd
   lcd.begin(16, 2);
-  pinMode(BOUTONPIN, INPUT);
   pinMode(BUZZPIN, OUTPUT);
   Serial1.begin(9600);
   Serial.begin(9600);
 }
 
 void loop() {
-  //char key = keypad.getKey();
+  if (Serial.available()) {
+    if (Serial.read() == '*') {
+        options();
+    }
+
+  }
+
   if (Serial1.available()) {
     String message = Serial1.readStringUntil('\n');
-    //message.trim();
     int temperature = message.toInt();
-    Serial.println(temperature); 
+    refresh(temperature);
+    if (temperature <= minimum || temperature >= maximum) {
+      alarm();
     }
-//  if ((timeCheckpoint + 1000) <= millis()) {refresh(key);}
-  //refresh(temp);
-  delay(1000);
+  }
 }
